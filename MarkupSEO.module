@@ -29,6 +29,8 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		return array(
 			'sitename' => '', 
 			'title' => '', 
+			'title_append'	=>	'',
+			'title_prepend'	=>	'',
 			'titleSmart' => '', 
 			'keywords' => '', 
 			'keywordsSmart' => '', 
@@ -306,6 +308,7 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 	 *
 	 */
 	public function hookFrontendPage(HookEvent $event) {
+
 		$pageDataDefault = $this->getPageSEO($this->page->id);
 		$configData = wire('modules')->getModuleConfigData($this);
 		unset($configData['pages'], $configData['excludedTemplates'], $configData['useParents'], $configData['usePermission'], $configData['method']);
@@ -315,7 +318,9 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		// use configuration and/or smart values
 		if($this->titleSmart && $pageDataDefault['title'] == '' && $this->page->get(implode('|', $this->titleSmart)) != '') $mixedData['title'] = $this->page->get(implode('|', $this->titleSmart));
 		if($mixedData['title'] == '' && $this->useParents && $this->page->id != '1') $mixedData['title'] = $this->getParentValue($this->page, 'title');
-		
+		if($append = $configData['title_append']) $mixedData['title'].= ' '.$append;
+		if($prepend = $configData['title_prepend']) $mixedData['title'] = $prepend.' '.$mixedData['title'];
+
 		if($this->keywordsSmart && $pageDataDefault['keywords'] == '' && $this->page->get(implode('|', $this->keywordsSmart)) != '') $mixedData['keywords'] = $this->page->get(implode('|', $this->keywordsSmart));
 		if($mixedData['keywords'] == '' && $this->useParents && $this->page->id != '1') $mixedData['keywords'] = $this->getParentValue($this->page, 'keywords');
 		
@@ -323,12 +328,11 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		if($mixedData['description'] == '' && $this->useParents && $this->page->id != '1') $mixedData['description'] = $this->getParentValue($this->page, 'description');
 
 		if($this->imageSmart && $pageDataDefault['image'] == '' && count($this->page->get(implode('|', $this->imageSmart))) > 0)
-			if($this->page->get(implode('|', $this->imageSmart)->first()->url != '')) $mixedData['image'] = $this->page->get(implode('|', $this->imageSmart))->first()->url;
+			if($this->page->get(implode('|', $this->imageSmart)->first()->url != '')) 
+				$mixedData['image'] = $this->page->get(implode('|', $this->imageSmart))->first()->url;
 
 		unset($mixedData['titleSmart'], $mixedData['keywordsSmart'], $mixedData['descriptionSmart'], $mixedData['imageSmart']);
-		
-
-		
+				
 		// add generator
 		if($mixedData['includeGenerator']) $mixedData['generator'] = 'ProcessWire '.$this->config->version;
 		unset($mixedData['includeGenerator']);
@@ -369,13 +373,13 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		// add "render"
 		$rendered = '';
 		foreach(array_filter($mixedData) as $name => $content) {
-			if($name == 'custom') continue;
+			if($name == 'custom' || $name == "title_append" || $name == "title_prepend") continue;	// skip rendering these
 			if($name == 'robots') $content = implode(', ', $content);
-			if($name == 'title') $rendered .= '<title>'.$content.'</title>'."\r\n";
-			else $rendered .= '<meta name="'.$name.'" content="'.$content.'">'."\r\n";
+			if($name == 'title') $rendered .= '<title>'.$content.'</title>'."\n";
+			else $rendered .= '<meta name="'.$name.'" content="'.$content.'">'."\n";
 		}
 		
-		$mixedData['render'] = $rendered.((@$mixedData['custom']) ? $mixedData['custom'] : '').$googleAnalytics."\n\r";
+		$mixedData['render'] = $rendered.((@$mixedData['custom']) ? $mixedData['custom'] : '').$googleAnalytics."\n";
 		
 		$event->return = (object)$mixedData;
 	}
@@ -425,7 +429,6 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		// merge default config settings (custom values overwrite defaults)
 		$defaults = self::getDefaultConfig();
 		$data = array_merge($defaults, $data);
-
 		
 		$field = $modules->get("InputfieldText");
 		$field->name = "sitename";
@@ -438,11 +441,11 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		$field = $modules->get("InputfieldText");
 		$field->name = "title";
 		$field->label = __("Title");
-		$field->description = "A good length for a title is 60 characters.";
+		$field->description = "A good length for a title is 60 characters (including append and prepend text).";
 		$field->value = $data['title'];
 		$field->columnWidth = '50%';
 		$fields->add($field);
-		
+
 		$field = $modules->get("InputfieldAsmSelect");
 		$field->name = "titleSmart";
 		$field->label = __("Smart Title");
@@ -452,6 +455,21 @@ class MarkupSEO extends WireData implements Module, ConfigurableModule {
 		$field->columnWidth = '50%';
 		$fields->add($field);
 		
+		$field = $modules->get("InputfieldText");
+		$field->name = "title_append";
+		$field->label = __("Append To Title");
+		$field->description = "Globally append this text to the end of the title.";
+		$field->value = $data['title_append'];
+		$field->columnWidth = '50%';
+		$fields->add($field);
+		
+		$field = $modules->get("InputfieldText");
+		$field->name = "title_prepend";
+		$field->label = __("Prepend To Title");
+		$field->description = "Globally prepend this text to the begining of the title.";
+		$field->value = $data['title_prepend'];
+		$field->columnWidth = '50%';
+		$fields->add($field);
 		
 		$field = $modules->get("InputfieldText");
 		$field->name = "keywords";
